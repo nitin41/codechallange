@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import moment from 'moment'
-import _ from 'lodash'
 import './CheckBookReact.css'
-
-const CheckContext = React.createContext({entries:[],getEntries:async()=>{},setCancel:async(tid,value)=>{}});
 
 const sourceData = [
   {tid:1,date:"2020-03-10T10:47:02-05:00", credit:100, description:"initial deposit"},
@@ -21,46 +18,9 @@ const sourceData = [
   {tid:13,check_no:227, date:"2020-03-26T19:00:00-05:00", debit:31.01, description:"IHOP"}
 ];
 
-function CheckProvider(props) {
-  const [entries,setEntries] = React.useState(() =>
-    sourceData.map( (item,rid) => ({
-      ...item,
-      rid,
-      date:new Date(Date.parse(item.date)),
-      canceled:!!item.canceled
-    }))
-  );
-  
-  const contextValue = React.useMemo( () => {
-    const setCancel = async(tid,value) => {
-      setEntries(currentEntries => [
-        ...currentEntries.slice(0,tid),
-        {
-          ...currentEntries[tid],
-          canceled: value
-        },
-        ...currentEntries.slice(tid+1)
-      ]);
-    };
-
-    return {
-      entries: entries.map(item => {return {...item,balance:0}}),
-      setCancel
-    };
-  }, [entries]);
-
-  return (
-    <CheckContext.Provider value={contextValue}>
-      {props.children}
-    </CheckContext.Provider>
-  );
-}
-
 // formatting
 const formatDefault = (x) => x.toString()
 
-// sorting - tristate {unsorted,asc,desc}
-const [DIR_NONE,DIR_ASC,DIR_DESC] = [0,1,2];
 const sortDirClass = {1:'asc',2:'desc',0:null}
 
 const cmpNoop = () => 0
@@ -111,11 +71,11 @@ The associated style sheet will render the checkbox nicely with the following:
 
 // component to render the check book
 export default function CheckBook() {
-  const [masterData, setMasterData] = useState([])
-  
-  useEffect(()=>{
+  const [masterData, setMasterData] = useState(sourceData)
+
+  const setEntries = (val=0) => {
     let balance = 0
-    const finalData = sourceData.map((row) => {
+    const finalData = masterData.map((row) => {
       let debit = 0
       let credit = 0
       if(!row.check_no)
@@ -128,86 +88,28 @@ export default function CheckBook() {
       row.credit = credit
       row.debit = debit
       row.balance = 0
-      if(!row.canceled){
-        balance += bel
-        row.balance = balance.toFixed(2)
-      }  
-      return row
-    })
-    setMasterData(finalData)
-  },[0])
-
-  const [sortedField, setSortedField] = useState({dir:0});
-  const descendingComparator = (a, b, orderBy) => {
-    if (b[orderBy] < a[orderBy]) {
-      return -1;
-    }
-    if (b[orderBy] > a[orderBy]) {
-      return 1;
-    }
-    return 0;
-  }
-  
-  const getComparator = (order, orderBy) => {
-    return order === 'desc'
-      ? (a, b) => descendingComparator(a, b, orderBy)
-      : (a, b) => -descendingComparator(a, b, orderBy);
-  }
-
-  const stableSort = (comparator) => {
-    const stabilizedThis = masterData.map((el, index) => [el, index]);
-    stabilizedThis.sort((a, b) => {
-      const order = comparator(a[0], b[0]);
-      if (order !== 0) return order;
-      return a[1] - b[1];
-    });
-    return stabilizedThis.map((el) => el[0]);
-  }
-
-  const toggleSort= (key,cmp) => {
-    let order = sortedField.dir
-    switch (order) {
-      case 0:
-      case 1:
-        order = order+1  
-        break;
-      case 2:
-        order = order-1  
-        break;
-      default:
-        break;
-    }
-    console.log('order', sortedField.dir, order, sortDirClass[order])
-    const result = stableSort(getComparator(sortDirClass[order], key))
-    setSortedField({
-      key,
-      dir:order
-    })
-    setMasterData(result)
-  };
-
-  const onChangeAction = (evt) => {
-    const val = parseInt(evt.target.value)
-    let balance = 0
-    const finalData = masterData.map((row) => {
-      let debit = 0
-      let credit = 0
-      if(row.debit)
-        debit = row.debit
-      if(row.credit)
-        credit=row.credit
-      let bel= credit - debit 
       if(row.tid === val)
         row.canceled = !row.canceled
       if(!row.canceled){
         balance += bel
         row.balance = balance.toFixed(2)
-      }else{
-        row.balance = 0
       }  
       return row
     })
     setMasterData(finalData)
+  }
+  
+  useEffect(()=>{
+    setEntries()
+  },[])
+
+  const [sortedField, setSortedField] = useState({dir:0});
+
+  const toggleSort = (key,cmp) => {};
+
+  const onChangeAction = (evt) => {
+    const val = parseInt(evt.target.value)
+    setEntries(val)
   }
 
   return (
@@ -228,16 +130,16 @@ export default function CheckBook() {
                 </div>
               </td>
               <td>
-                <div className={'debit middleAlign'}>
+                <div className={!row.canceled? 'debit middleAlign': 'middleAlign'}>
                   {row.debit ? row.debit: null}
                 </div>
               </td>
               <td>
-                <div className={['credit middleAlign']}>
+              <div className={!row.canceled? 'credit middleAlign': 'middleAlign'}>
                   {row.credit ? row.credit :null}
                 </div>
               </td>
-              <td className={row.balance && row.balance<0 ? 'negativeBalance':''}>
+              <td>
                 <div className={['balance middleAlign']}>
                   {(row.balance && !row.canceled) ? row.balance : null}
                 </div>
